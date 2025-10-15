@@ -111,7 +111,8 @@ fct_count(F_Borough)
 # We've created a factor for Borough. Now we want to combine levels 2 and 4. Then we'll make sure it worked with the fct_count function again.
 F_Borough_Comb <- fct_collapse(F_Borough, "2+4"=c(2, 4))
 fct_count(F_Borough_Comb, prop = TRUE)
-# So we've created a new factor called "Factor Borough Combined" where we combined the Bronx and Queens.
+# So we've created a new factor called "Factor Borough Combined" where we combined the Bronx and Queens. Now we just need to add it to our data set.
+DATA$BOROUGH.COMBINED <- F_Borough_Comb
 
 
 # For our next variable "Neighborhood", we're going to want to combine many factor levels together. This will be tricky. I am thinking that we will need to use some logic to combine our factor levels together. Probably we will do it based on keep adding factor levels together until the combined factor level has at least 504 observations in it. Time to figure out how to do this.
@@ -181,4 +182,51 @@ print(by_Tax_Clss_Sale_Combined)
 
 # We see that the mean changes for both groups significantly but the median remains the same!
 # So we've combined levels 2 and 4 of tax class sale and have put it into our data set.
+```
+
+Now, we have our variables ready for some analyses. We're going to rerun one of our codes from earlier to help us assess if our, now two, categorical variables will have an impact on GSF.
+```{r}
+library(tidyverse)
+# First, we're going to save the names of our categorical predictors (CP) as a vector. The column numbers that correspond to our CP's are column 12 and column 13.
+# Then our function will go ahead and generate the mean and median of Gross Square Feet (GSF) for each level of each CP.
+vars.categorical2 <- c("COMBINED.TAX.CLASS.SALE", "BOROUGH.COMBINED")
+for (i in vars.categorical2) {
+x2 <- DATA %>%
+group_by_(i) %>%
+summarise(
+mean = mean(GROSS.SQUARE.FEET),
+median = median(GROSS.SQUARE.FEET),
+n = n()
+)
+print(x2)
+}
+
+# We see a couple of things. 1st: Combined Tax Class Sale seems to have a pretty sizeable impact on GSF. 2nd: Borough Combined also seems to have a noticeable impact on GSF.
+
+# Let's look at some graphical displays as well.
+for (i in vars.categorical2){
+  cat.plot <- ggplot(DATA, aes(x = DATA[, i], y = GROSS.SQUARE.FEET)) +
+    geom_boxplot(outlier.color = "red") +
+    labs(x = i)
+  print(cat.plot)
+}
+# HMMM.... This is making me think that there are definetly some outliers in our data set. Let's see what happens if we remove these outliers.
+for (i in vars.categorical2){
+  cat.plot <- ggplot(DATA, aes(x = DATA[, i], y = GROSS.SQUARE.FEET)) +
+    geom_boxplot(outliers = FALSE) +
+    labs(x = i)
+  print(cat.plot)
+}
+# Clearly there's some effect that both of these are having on GSF.
+```
+Let's make some scatterplots for our numerical variables.
+```{r}
+# Similar Process to what we were doing above except with a scatterplot function.
+# Try seeing if we can detect all combinations of numerical variables with categorical variables.
+  num.plot <- ggplot(DATA, aes(x = RESIDENTIAL.UNITS, y = GROSS.SQUARE.FEET, color = BOROUGH.COMBINED)) +
+    geom_point() + 
+    geom_smooth(method = "lm", se = FALSE)
+  print(num.plot)
+
+# We can see that an interaction effect may be unlikely but its hard to tell.
 ```
