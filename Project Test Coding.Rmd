@@ -110,7 +110,7 @@ fct_count(F_Borough)
 
 # We've created a factor for Borough. Now we want to combine levels 2 and 4. Then we'll make sure it worked with the fct_count function again.
 F_Borough_Comb <- fct_collapse(F_Borough, "2+4"=c(2, 4))
-fct_count(F_Borough_Comb)
+fct_count(F_Borough_Comb, prop = TRUE)
 # So we've created a new factor called "Factor Borough Combined" where we combined the Bronx and Queens.
 
 
@@ -146,5 +146,39 @@ fct_count(F_ZipCode)
 
 ```
 
-Test! I repeat this is a test!
+Ok, so we're skipping the neighborhood variable ATM for the sake of time. We're also going to be skipping over: building class category, zip code, building class at time of sale. This means we have the variables: residential units, commerical units, year, sales price, combined borough, and tax class at time of sale.
 
+This means we need to do some work on tax class at time of sale.
+```{r}
+# First, let's look at Tax Class At Time of Sale.
+Tax_Clss_Sale <- factor(x = DATA$TAX.CLASS.AT.TIME.OF.SALE)
+fct_count(Tax_Clss_Sale)
+
+# We see that this gives us one level of tax class at time of sale that is under 504. This is a little bit worrisome as the information included may potentially mess with whatever factor level it is included in. Let's combine it with factor level 2, as they have a similar median. We will do this by using the
+Tax_Clss_Sale_Comb <- fct_collapse(Tax_Clss_Sale, "2+4" = c(2, 4) )
+fct_count(f = Tax_Clss_Sale_Comb)
+DATA$COMBINED.TAX.CLASS.SALE <-Tax_Clss_Sale_Comb
+# Now I want to see how this affected the mean and median of the different groups.
+library(tidyverse)
+
+# This first function will show us the mean and median of the Tax Class Variable.
+by_Tax_Clss_Sale <- DATA %>% 
+group_by(TAX.CLASS.AT.TIME.OF.SALE) %>%
+summarise(
+  mean = mean(GROSS.SQUARE.FEET),
+  median = median(GROSS.SQUARE.FEET)
+)
+print(by_Tax_Clss_Sale)
+
+# This function will show us the mean and median of the Combined Tax Class Variable.
+by_Tax_Clss_Sale_Combined <- DATA %>% 
+group_by(COMBINED.TAX.CLASS.SALE) %>%
+summarise(
+  mean = mean(GROSS.SQUARE.FEET),
+  median = median(GROSS.SQUARE.FEET)
+)
+print(by_Tax_Clss_Sale_Combined)
+
+# We see that the mean changes for both groups significantly but the median remains the same!
+# So we've combined levels 2 and 4 of tax class sale and have put it into our data set.
+```
