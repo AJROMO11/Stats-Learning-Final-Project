@@ -1,0 +1,149 @@
+---
+title: "Project Test Coding"
+author: "Daniel Scott"
+date: "2025-10-15"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+Question (Q): What is the problem we're investigating?
+  We're investigating how the size of properties in New York is predicted by
+  various variables. These variables are: which neighborhood the property is in, the tax class, the building classification
+  at the time of sale, the zip code of the property, the month the property was sold in, the number of residential and
+  commercial units, the sales price, and the year the property was built.
+  
+Q: Are we focused on making predictions or are we trying to describe the relationship between
+multiple variables?
+  We're focused on helping people with budgets in mind understand what size of property they can buy.
+  So I would say we're worried about making predictions.
+
+Q: What kind of statistical learning are we performing?
+  We want to perform Predictive Statistical learning. We're more worried about accuracy than interpretability.
+  We want to lower our bias and increase our variance.
+
+Q: What sort of analyses do we intend to perform?
+  We're doing a GLM to help us predict how our variables impact the Gross Square Feet of units.
+  
+
+```{r}
+# We're 1st going to import our dataset. The data set is called "nyc-rolling-sales_initialcleaning(1)".
+DATA <- read.csv("C:\\Users\\Daniel Scott\\Desktop\\College\\Fall 2025\\Statistical Learning\\Ordered NYC Data.csv")
+
+# Next, we generate a summary. We're also checking how many observations we have and how many variables. 
+summary(DATA)
+dim(DATA)
+names(DATA)
+# So we have 10,079 observations, and 11 variables. The names() command tells you the names.
+
+# Now, we want to look at what our target variable looks like. Our target variable = Gross.Square.Feet
+summary(DATA$GROSS.SQUARE.FEET)
+library(ggplot2)
+ggplot(DATA, aes(x = GROSS.SQUARE.FEET)) + geom_histogram(binwidth = 100000)
+
+# So it looks like there may be some outliers. Clearly, something is up because these bins are really really large.The range of our data is very very very large which means it may be tough to graphically look at our data.
+
+# By looking at our mean and median, we see that the mean is MUCH larger than our median. This indicates a positively skewed data set. Since no values of our target variable are 0, we can use a logarithmic transformation to try and make our variable more normal. Let's see how that looks now.
+ggplot(DATA, aes(x = log(GROSS.SQUARE.FEET))) + geom_histogram()
+# Alright. This looks waaaayyy better. It still looks positively skewed but we're doing much better.
+
+# Now, let's look at our correlation matrix. Our numerical predictors are in columns: five, six, eight and 11. Our target variable is in column 7
+cor.matrix <- cor(DATA[, c(5, 6, 8, 11, 7 )])
+round(cor.matrix, digits = 3)
+# The correlations for our numeric predictors are not very high, which is what we want. We don't want to have to deal with high collinearities, if I am remembering properly.
+# Notice that sale price is strongly correlated with gross square feet, and residential units is also strongly correlated as well.
+```
+We're now moving onto visualizing the relationships between our numeric predictors and gross square feet.
+```{r}
+# First we're saving the names of the numeric predictors (N.P.) as a vector. Then we're plotting each N.P. against Gross.Square.Feet.
+vars.numeric <- colnames(DATA[, c(5, 6, 8, 11)])
+for (i in vars.numeric){
+plot <- ggplot(DATA, aes(x = DATA[, i], y = GROSS.SQUARE.FEET)) +
+geom_point() +
+geom_smooth(method = "lm", se = FALSE) +
+labs(x = i)
+print(plot)
+}
+# We see that all of the N.P.'s, except year built have a positive correlation with gross square feet.
+# We see that year built has almost a 0 correlation with gross square feet. So we'll keep that in the back of our mind.
+```
+Now we are moving onto exploring our categorical variables. We have six categorical variables: borough, neighborhood, building class category, zip code, tax class, and building class at time of sale.
+
+We're going to calculate the mean and median of our target variable (TV), which is Gross Square Feet. This will be split by the different levels of each of our categorical variables.
+First we need to install tidyverse.
+#```{r}
+#install.packages("tidyverse")
+#```
+Now that it is installed, we can move onto actually using it.
+```{r}
+library(tidyverse)
+# Now, we're going to save the names of our categorical predictors (CP) as a vector. The column numbers that correspond to our CP's are one through four, then nine and ten.
+# Then our function will go ahead and generate the mean and median of Gross Square Feet (GSF) for each level of each CP.
+vars.categorical <- colnames(DATA[, c(1:4, 9:10)])
+for (i in vars.categorical) {
+x <- DATA %>%
+group_by_(i) %>%
+summarise(
+mean = mean(GROSS.SQUARE.FEET),
+median = median(GROSS.SQUARE.FEET),
+n = n()
+)
+print(x)
+}
+# A couple of notes:
+# Most of our CP's have some levels with small n's that we may want to combine to reduce dimensionality.
+# There are some levels that seem to make a large difference in the mean and median of GSF.
+
+# So we're going to need to consider the 5% rule, which states that each factor level should contain at least 5% of the total observations. For our data set, n = 10,079. 0.05*10,079 = 503.95, which we will round up to 504. So each factor level must contain at least 504 observations in it.
+# Let's start doing that here.
+
+# We're just going to combine Borough two, which is the Bronx with Borough four, which is Queens because they both border the East River in NYC.We're checking that everything looks good with the factor count function.
+library(forcats)
+F_Borough <- factor(x = DATA$BOROUGH)
+fct_count(F_Borough)
+
+
+# We've created a factor for Borough. Now we want to combine levels 2 and 4. Then we'll make sure it worked with the fct_count function again.
+F_Borough_Comb <- fct_collapse(F_Borough, "2+4"=c(2, 4))
+fct_count(F_Borough_Comb)
+# So we've created a new factor called "Factor Borough Combined" where we combined the Bronx and Queens.
+
+
+# For our next variable "Neighborhood", we're going to want to combine many factor levels together. This will be tricky. I am thinking that we will need to use some logic to combine our factor levels together. Probably we will do it based on keep adding factor levels together until the combined factor level has at least 504 observations in it. Time to figure out how to do this.
+```
+
+Ok so we need to condense the neighborhoods. Let's do it in a systematic manner. I am referring to https://locality.nyc for a map of New York City.
+I am proposing we condense these levels into clusters of neighborhoods that are geographically close to one another. The first step is to choose a starting point. I am starting with the neighborhoods in Manhattan.
+```{r}
+# First we need to load the forcats library.
+library(forcats)
+F_Neighborhood <- factor(x = DATA$NEIGHBORHOOD)
+# Next, we are going to have a count of each ordered Neighborhood.
+Neigh_Count <- fct_count(DATA$NEIGHBORHOOD)
+print(Neigh_Count)
+
+# I am first going to sort the neighborhoods in order they appear in our data set. This is defined as "Ordered_Neighborhood."
+Ordered_Neighborhood <- fct_inorder(DATA$NEIGHBORHOOD)
+print(Ordered_Neighborhood)
+
+# Let's check what the factor count of ordered Neighborhood looks like.
+fct_count(Ordered_Neighborhood)
+
+# Ok this is what we wanted.
+# Let's try to now combine this factor NOT based on geographic location but based on Zip Code. This will effectively allow us to include zip code's information and have some sembelence related to geographic information included. Note: Zip Codes are much more about post offices and less to do with geographic information necessarily.
+
+fct_reorder2(F_Neighborhood, DATA$NEIGHBORHOOD, DATA$ZIP.CODE)
+
+F_ZipCode <- factor(DATA$ZIP.CODE)
+fct_count(F_ZipCode)
+
+#We're going to come back to this later. We are going to skip these high dimensionality categorical variables and instead just run what we can at the moment.
+
+```
+
+
