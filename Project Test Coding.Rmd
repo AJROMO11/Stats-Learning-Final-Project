@@ -122,26 +122,26 @@ Ok so we need to condense the neighborhoods. Let's do it in a systematic manner.
 I am proposing we condense these levels into clusters of neighborhoods that are geographically close to one another. The first step is to choose a starting point. I am starting with the neighborhoods in Manhattan.
 ```{r}
 # First we need to load the forcats library.
-library(forcats)
-F_Neighborhood <- factor(x = DATA$NEIGHBORHOOD)
+#library(forcats)
+#F_Neighborhood <- factor(x = DATA$NEIGHBORHOOD)
 # Next, we are going to have a count of each ordered Neighborhood.
-Neigh_Count <- fct_count(DATA$NEIGHBORHOOD)
-print(Neigh_Count)
+#Neigh_Count <- fct_count(DATA$NEIGHBORHOOD)
+#print(Neigh_Count)
 
 # I am first going to sort the neighborhoods in order they appear in our data set. This is defined as "Ordered_Neighborhood."
-Ordered_Neighborhood <- fct_inorder(DATA$NEIGHBORHOOD)
-print(Ordered_Neighborhood)
+#Ordered_Neighborhood <- fct_inorder(DATA$NEIGHBORHOOD)
+#print(Ordered_Neighborhood)
 
 # Let's check what the factor count of ordered Neighborhood looks like.
-fct_count(Ordered_Neighborhood)
+#fct_count(Ordered_Neighborhood)
 
 # Ok this is what we wanted.
 # Let's try to now combine this factor NOT based on geographic location but based on Zip Code. This will effectively allow us to include zip code's information and have some sembelence related to geographic information included. Note: Zip Codes are much more about post offices and less to do with geographic information necessarily.
 
-fct_reorder2(F_Neighborhood, DATA$NEIGHBORHOOD, DATA$ZIP.CODE)
+#fct_reorder2(F_Neighborhood, DATA$NEIGHBORHOOD, DATA$ZIP.CODE)
 
-F_ZipCode <- factor(DATA$ZIP.CODE)
-fct_count(F_ZipCode)
+#F_ZipCode <- factor(DATA$ZIP.CODE)
+#fct_count(F_ZipCode)
 
 #We're going to come back to this later. We are going to skip these high dimensionality categorical variables and instead just run what we can at the moment.
 
@@ -200,7 +200,6 @@ n = n()
 )
 print(x2)
 }
-
 # We see a couple of things. 1st: Combined Tax Class Sale seems to have a pretty sizeable impact on GSF. 2nd: Borough Combined also seems to have a noticeable impact on GSF.
 
 # Let's look at some graphical displays as well.
@@ -219,14 +218,144 @@ for (i in vars.categorical2){
 }
 # Clearly there's some effect that both of these are having on GSF.
 ```
+We need a way to address our outliers.
+```{r}
+# Calculate the quantiles and the IQR based on GSF.
+DATA$logGROSS.SQUARE.FEET <- log(DATA$GROSS.SQUARE.FEET)
+Q1 <- quantile(DATA$logGROSS.SQUARE.FEET, 0.25)
+Q3 <- quantile(DATA$logGROSS.SQUARE.FEET, 0.75)
+IQR <- Q3 - Q1
+print("Q1")
+print(Q1)
+print("Q3")
+print(Q3)
+print("IQR")
+print(IQR)
+
+# Now we will define the bounds of our data. If anything falls outside these bounds, we will remove them for being outliers.
+lower_bound <- Q1 - 1.5 * IQR
+print("lowerbound")
+print(lower_bound)
+upper_bound <- Q3 + 1.5 * IQR
+print(upper_bound)
+
+# Now, we will identify the outliers. We're going to omit the lower bound because we can't have negative gross square feet.
+outliers <- which(DATA$logGROSS.SQUARE.FEET < lower_bound|DATA$logGROSS.SQUARE.FEET > upper_bound)
+
+#Using a different method to identify outliers
+#Box_1 <- boxplot.stats(DATA$GROSS.SQUARE.FEET)
+#Box_1
+#Testing_Box <- boxplot.stats(DATA$GROSS.SQUARE.FEET)$out
+#print("Outliers Boxplot stats")
+#Testing_Box
+
+#We've identified 24 outliers, now we need to remove them. Fixed_Data will refer to our data without these outliers in them.
+Fixed_DATA <- DATA[-outliers, ]
+```
 Let's make some scatterplots for our numerical variables.
 ```{r}
 # Similar Process to what we were doing above except with a scatterplot function.
-# Try seeing if we can detect all combinations of numerical variables with categorical variables.
-  num.plot <- ggplot(DATA, aes(x = RESIDENTIAL.UNITS, y = GROSS.SQUARE.FEET, color = BOROUGH.COMBINED)) +
-    geom_point() + 
-    geom_smooth(method = "lm", se = FALSE)
-  print(num.plot)
+# We're now going to be trying to see if we can graphically detect any interaction effects.
+# Recall:vars.numeric <- colnames(DATA[, c(5, 6, 8, 11)]) 
 
-# We can see that an interaction effect may be unlikely but its hard to tell.
+for (i in vars.numeric){
+plot <- ggplot(DATA, aes(x = DATA[, i], y = GROSS.SQUARE.FEET, color = BOROUGH.COMBINED)) +
+geom_point() +
+geom_smooth(method = "lm", se = FALSE) +
+labs(x = i)
+print(plot)
+}
+
+
+# Residential Units doesn't appear to interact with Borough
+# Commercial units may interact with Borough
+# Something odd is happening with year built... Particularly with Borough 1. Those outliers appear to be skewing things drastically.
+# Sale Price may interact with borough.
+# I think these provide more evidence of outliers causing problems in our data set.
+#We will have to address them.
+```
+Here we address the outliers. We are going to remove them for the time being.
+
+Now we can finally, initially split our data into the test and training data sets.
+```{r}
+#This is creating a test and training data split based on a 70% 30% data split. It is also reporting the mean and median of our training and testing data.
+library(caret)
+partition <- createDataPartition(DATA$GROSS.SQUARE.FEET, p = 0.7, list = FALSE)
+data.train = DATA[partition, ]
+data.test = DATA[-partition, ]
+print("data.train")
+mean(data.train$GROSS.SQUARE.FEET)
+median(data.train$GROSS.SQUARE.FEET)
+
+print("data.test")
+mean(data.test$GROSS.SQUARE.FEET)
+median(data.test$GROSS.SQUARE.FEET)
+
+
+# We're doing this to create a partition just to see what it would look like using the fixed data.
+library(caret)
+partition2 <- createDataPartition(Fixed_DATA$GROSS.SQUARE.FEET, p = 0.7, list = FALSE)
+data.train_F = Fixed_DATA[partition2, ]
+data.test_F = Fixed_DATA[-partition2, ]
+print("data.train_F")
+mean(data.train_F$GROSS.SQUARE.FEET)
+median(data.train_F$GROSS.SQUARE.FEET)
+
+print("data.test_F")
+mean(data.test_F$GROSS.SQUARE.FEET)
+median(data.test_F$GROSS.SQUARE.FEET)
+#The means are much closer, so I would recommend using the second data set.
+
+#Just making a histogram to see what our logarithmic model look like with our fixed data.
+ggplot(Fixed_DATA, aes(x = logGROSS.SQUARE.FEET)) + geom_histogram()
+#This looks much better.
+
+```
+Now we move onto to doing a Multiple Linear Regression.
+```{r}
+# This is the linear regression for the full model.
+model.full <- lm(
+  logGROSS.SQUARE.FEET ~ BOROUGH.COMBINED + RESIDENTIAL.UNITS + COMMERCIAL.UNITS + YEAR.BUILT + SALE.PRICE + COMBINED.TAX.CLASS.SALE, data = Fixed_DATA
+  )
+summary(model.full)
+```
+Here we see that the only non-significant predictor is the tax class at time of sale. Year built doesn't seem to be adding much useful information to our data though.
+```{r}
+round(confint(model.full, level = 0.95), 2)
+```
+Now we need to relevel our factors and binarize.
+```{r}
+for (i in vars.categorical2){
+# Use the table() function to calculate the frequencies for each factor
+table <- as.data.frame(table(Fixed_DATA[, i]))
+# Determine the level with the highest frequency
+max <- which.max(table[, 2])
+# Save the name of the level with the highest frequency
+level.name <- as.character(table[max, 1])
+# Set the baseline level to the most populous level
+Fixed_DATA[, i] <- relevel(Fixed_DATA[, i], ref = level.name)
+}
+print("Dimension of the Fixed Dataset")
+dim(Fixed_DATA)
+print("Categorical Summary")
+summary(Fixed_DATA[, vars.categorical2])
+#Notice that Manhattan's Borough is now too low. We will have to address this later as it under 5% of the observations.
+```
+
+```{r}
+# To make sure factors in the training set are releveled
+data.train_F <- Fixed_DATA[partition, ]
+model.full <- lm(
+  logGROSS.SQUARE.FEET ~ BOROUGH.COMBINED + RESIDENTIAL.UNITS + COMMERCIAL.UNITS + YEAR.BUILT + SALE.PRICE + COMBINED.TAX.CLASS.SALE, data = Fixed_DATA
+  )
+summary(model.full)
+
+#Now we're binarizing these variables.
+library(caret)
+binarizer <- dummyVars((~ BOROUGH.COMBINED + COMBINED.TAX.CLASS.SALE),
+data = Fixed_DATA, fullRank = TRUE)
+binarized_vars <- data.frame(predict(binarizer, newdata = Fixed_DATA))
+head(binarized_vars)
+
+Data.bin <- cbind()
 ```
