@@ -357,5 +357,35 @@ data = Fixed_DATA, fullRank = TRUE)
 binarized_vars <- data.frame(predict(binarizer, newdata = Fixed_DATA))
 head(binarized_vars)
 
-Data.bin <- cbind()
+Data.bin <- cbind(Fixed_DATA, binarized_vars)
+head(Data.bin)
+
+# Clearing duplicate variables because of the binarization of borough.combined and combined.tax.class.sale
+Data.bin$BOROUGH <- NULL
+Data.bin$BOROUGH.COMBINED <- NULL
+Data.bin$COMBINED.TAX.CLASS.SALE <- NULL
+head(Data.bin)
+
+
 ```
+NOTE: As none of our categorical varaibles have greater than three levels, there's  no need to binarize our variables. But we already binarized our variables so we continue on.
+```{r}
+data.train.bin <- Data.bin[partition, ]
+data.test.bin <- Data.bin[-partition, ]
+
+#Now we will refit the MLR with our binarization
+model.full.bin <- lm(
+  logGROSS.SQUARE.FEET ~ BOROUGH.COMBINED.1 + BOROUGH.COMBINED.2.4 + RESIDENTIAL.UNITS + COMMERCIAL.UNITS + YEAR.BUILT + SALE.PRICE + COMBINED.TAX.CLASS.SALE.2.4, data = data.train.bin
+)
+summary(model.full.bin)
+#This showws us a couple of things: Boroughs 2 & 4 are not statistically significant, as well as 2&4 tax class do not add anything significant to our model in comparison to our new baseline conditions. (For reference, baselines are borough 5 and tax class 1)
+```
+Now time for some backward selection!
+```{r}
+library(MASS)
+model.backward.AIC <- stepAIC(model.full.bin)
+print("MODEL SUMMARY")
+summary(model.backward.AIC)
+```
+So we see that boroughs 2&4 as well as combined tax class 2&4 were eliminated.
+Our final model contains 5 independent variables: borough combined 1, residential units, commerical units, year built, & sales price. Also note that borough 5 and tax class 1 are still in our model.
