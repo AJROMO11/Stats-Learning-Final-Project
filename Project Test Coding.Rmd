@@ -378,7 +378,7 @@ model.full.bin <- lm(
   logGROSS.SQUARE.FEET ~ BOROUGH.COMBINED.1 + BOROUGH.COMBINED.2.4 + RESIDENTIAL.UNITS + COMMERCIAL.UNITS + YEAR.BUILT + SALE.PRICE + COMBINED.TAX.CLASS.SALE.2.4, data = data.train.bin
 )
 summary(model.full.bin)
-#This showws us a couple of things: Boroughs 2 & 4 are not statistically significant, as well as 2&4 tax class do not add anything significant to our model in comparison to our new baseline conditions. (For reference, baselines are borough 5 and tax class 1)
+#This shows us a couple of things: Boroughs 2 & 4 are not statistically significant, as well as 2&4 tax class do not add anything significant to our model in comparison to our new baseline conditions. (For reference, baselines are borough 5 and tax class 1)
 ```
 Now time for some backward selection!
 ```{r}
@@ -389,3 +389,57 @@ summary(model.backward.AIC)
 ```
 So we see that boroughs 2&4 as well as combined tax class 2&4 were eliminated.
 Our final model contains 5 independent variables: borough combined 1, residential units, commerical units, year built, & sales price. Also note that borough 5 and tax class 1 are still in our model.
+
+Now we move onto generating our decision tree.
+```{r}
+#basic tree
+treeModel <- rpart(
+  GROSS.SQUARE.FEET ~ BOROUGH.COMBINED + RESIDENTIAL.UNITS + COMMERCIAL.UNITS + YEAR.BUILT + SALE.PRICE + COMBINED.TAX.CLASS.SALE,
+  data = data.test_F,
+  method = "anova"
+)
+print(treeModel)
+
+rpart.plot(
+  treeModel,
+  extra = 1,
+  main = "Decision Tree Predicting Gross Square Feet"
+)
+# Just note that node 11 has only 86 observations.
+
+#RMSE of our basic tree
+library(Metrics)
+basic_predict <- predict(treeModel, newdata = data.test_F)
+basic_actual <- data.test_F$GROSS.SQUARE.FEET
+RMSE_prune <- rmse(basic_actual, basic_predict)
+print("RMSE of basic tree model")
+print(RMSE_prune)
+
+
+#pruned decision tree
+treeModel_prune <- rpart(
+  GROSS.SQUARE.FEET ~ BOROUGH.COMBINED + RESIDENTIAL.UNITS + COMMERCIAL.UNITS + YEAR.BUILT + SALE.PRICE + COMBINED.TAX.CLASS.SALE,
+  data = data.train_F,
+  method = "anova",
+  control = rpart.control(
+    minsplit = 20,
+    minbucket = 30,
+    cp = 0.01,
+    maxdepth = 5
+  )
+)
+print(treeModel_prune)
+rpart.plot(
+  treeModel_prune,
+  extra = 1,
+  main = "Expanded and pruned tree model"
+)
+
+#Calculating RMSE of our expanded and pruned decision tree
+library(Metrics)
+pruned_predict <- predict(treeModel_prune, newdata = data.test_F)
+pruned_actual <- data.test_F$GROSS.SQUARE.FEET
+RMSE_prune <- rmse(pruned_actual, pruned_predict)
+print("RMSE of Expanded and pruned tree model")
+print(RMSE_prune)
+```
